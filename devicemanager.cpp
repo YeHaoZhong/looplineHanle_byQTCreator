@@ -4,6 +4,8 @@
 #include <QPointer>       // QPointer
 #include <QMetaObject>    // QMetaObject::invokeMethod
 #include "sqlconnectionpool.h"
+#include "steplogger.h"
+#include <sstream>
 
 DeviceManager::DeviceManager()
 {
@@ -11,7 +13,8 @@ DeviceManager::DeviceManager()
     TotalPortNum = 252;
     camera41_send_port = 0;
     camera42_send_port = 0;
-
+    _currentCarIdFor41 = 1;
+    _currentCarIdFor42 = 1;
 }
 void DeviceManager::init()
 {
@@ -63,12 +66,12 @@ void DeviceManager::dbInit()
         auto position41 = _sqlQuery->queryString("config", "name", "camera_position_one", "value");
         if (position41)
         {
-            _camera41Position.store(std::stoi(*position41));
+            _camera41Position = std::stoi(*position41);
         }
         auto position42 = _sqlQuery->queryString("config", "name", "camera_position_two", "value");
         if (position42)
         {
-            _camera42Position.store(std::stoi(*position42));
+            _camera42Position = std::stoi(*position42);
         }
         auto camera41_port = _sqlQuery->queryString("config", "name", "camera_send_one", "value");
         if (camera41_port)
@@ -115,6 +118,16 @@ void DeviceManager::dbInit()
         auto car_acceleration_first = _sqlQuery->queryString("config", "name", "car_acceleration_first", "value");
         if (car_acceleration_first) _car_acceleration_first.store(std::stoi(*car_acceleration_first));
         log("---- [初始化] 运行速度:[" + std::to_string(_car_speed_first.load()) + "], 运行距离:[" + std::to_string(_car_distance_first.load()) + "], 运行加速度:[" + std::to_string(_car_acceleration_first) + "]");
+
+        auto db_camera41_sendcarid_ip = _sqlQuery->queryString("config","name","camera_carid_ip_one","value");
+        if(db_camera41_sendcarid_ip) camera41_carid_ip = *db_camera41_sendcarid_ip;
+        auto db_camera41_sendcarid_port = _sqlQuery->queryString("config","name","camera_carid_port_one","value");
+        if(db_camera41_sendcarid_port) camera41_send_carid_port = std::stoi(*db_camera41_sendcarid_port);
+
+        auto db_camera42_sendcarid_ip = _sqlQuery->queryString("config","name","camera_carid_ip_two","value");
+        if(db_camera42_sendcarid_ip) camera42_carid_ip = *db_camera42_sendcarid_ip;
+        auto db_camera42_sendcarid_port = _sqlQuery->queryString("config","name","camera_carid_port_two","value");
+        if(db_camera42_sendcarid_port) camera42_send_carid_port = std::stoi(*db_camera42_sendcarid_port);
     }
     catch (const std::exception& e)
     {
@@ -155,7 +168,7 @@ void DeviceManager::serialPortInit()        //不使用一个线程一个连接,
             SOCKET ok = conn->ConnectTo(host, port);
             if (ok != INVALID_SOCKET) {
                 log("---- [Initialize] Serial server connected! index: ["
-                    + std::to_string(i) + "] IP: [" + host + "]");
+                    + std::to_string(i) + "] IP: [" + host + "], 连接成功!");
 
                 // 接收数据 → 主线程处理
                 connect(conn, &SocketClient::dataReceived,
@@ -170,7 +183,7 @@ void DeviceManager::serialPortInit()        //不使用一个线程一个连接,
             }
             else {
                 log("---- [Error] Serial server connect failed! index: ["
-                    + std::to_string(i) + "] IP: [" + host + "]");
+                    + std::to_string(i) + "] IP: [" + host + "], 连接失败!");
             }
         }
         catch (const std::exception& e) {
@@ -178,47 +191,47 @@ void DeviceManager::serialPortInit()        //不使用一个线程一个连接,
                 + std::to_string(i) + "] : " + e.what());
         }
         SerialSockets[i] = QPointer<SocketClient>(conn);
-        Sleep(200);
+        Sleep(30);
     }
-    for (int i = 0; i < serialPortCount; ++i) {             //备用连接初始化
+    // for (int i = 0; i < serialPortCount; ++i) {             //备用连接初始化
 
-        // 已连接则跳过
-        if (!secondSerialSockets[i].isNull() && secondSerialSockets[i]->SocketConnection)
-            continue;
+    //     // 已连接则跳过
+    //     if (!secondSerialSockets[i].isNull() && secondSerialSockets[i]->SocketConnection)
+    //         continue;
 
-        const std::string host = host_vec[i][1];
-        const int port = std::stoi(host_vec[i][2]);
+    //     const std::string host = host_vec[i][1];
+    //     const int port = std::stoi(host_vec[i][2]);
 
-        SocketClient* conn = new SocketClient();   // 不设 parent（可选）
-        try {
-            SOCKET ok = conn->ConnectTo(host, port);
-            if (ok != INVALID_SOCKET) {
-                log("---- [Initialize] Second Serial server connected! index: ["
-                    + std::to_string(i) + "] IP: [" + host + "]");
+    //     SocketClient* conn = new SocketClient();   // 不设 parent（可选）
+    //     try {
+    //         SOCKET ok = conn->ConnectTo(host, port);
+    //         if (ok != INVALID_SOCKET) {
+    //             log("---- [Initialize] Second Serial server connected! index: ["
+    //                 + std::to_string(i) + "] IP: [" + host + "],连接成功!");
 
-                // 接收数据 → 主线程处理
-                connect(conn, &SocketClient::dataReceived,
-                        this, [this, i](const QByteArray& data) {
-                            onSerialDataReceived(i, data);
-                        });
+    //             // 接收数据 → 主线程处理
+    //             connect(conn, &SocketClient::dataReceived,
+    //                     this, [this, i](const QByteArray& data) {
+    //                         onSerialDataReceived(i, data);
+    //                     });
 
-                // 发送命令（主线程调用，SocketClient 内部 send）
-                connect(this, &DeviceManager::driveCommandToIndex,
-                        conn, &SocketClient::sendComand,
-                        Qt::DirectConnection);
-            }
-            else {
-                log("---- [Error] Second Serial server connect failed! index: ["
-                    + std::to_string(i) + "] IP: [" + host + "]");
-            }
-        }
-        catch (const std::exception& e) {
-            log("---- [Exception] Second Serial connect exception index ["
-                + std::to_string(i) + "] : " + e.what());
-        }
-        secondSerialSockets[i] = QPointer<SocketClient>(conn);
-        Sleep(200);
-    }
+    //             // 发送命令（主线程调用，SocketClient 内部 send）
+    //             connect(this, &DeviceManager::driveCommandToIndex,
+    //                     conn, &SocketClient::sendComand,
+    //                     Qt::DirectConnection);
+    //         }
+    //         else {
+    //             log("---- [Error] Second Serial server connect failed! index: ["
+    //                 + std::to_string(i) + "] IP: [" + host + "], 连接失败! ");
+    //         }
+    //     }
+    //     catch (const std::exception& e) {
+    //         log("---- [Exception] Second Serial connect exception index ["
+    //             + std::to_string(i) + "] : " + e.what());
+    //     }
+    //     secondSerialSockets[i] = QPointer<SocketClient>(conn);
+    //     Sleep(30);
+    // }
 }
 void DeviceManager::handleCommandSent(int socketIndex, bool success)
 {
@@ -269,33 +282,16 @@ bool DeviceManager::driveByCarID(int car_id, bool Corotation, int speed, int dis
             log("---- [错误] driveByCarID: 串口服务器索引 [" + std::to_string(index) + "] 超出数量范围!");
             return false;
         }
-        if(_serialSocketsLock[index]->try_lock()){                   //尝试上锁, 如果失败则使用备用
-        // if(true){
-            auto connPtr = SerialSockets[index].get();
-            if(connPtr == nullptr || !connPtr->SocketConnection)
-            {
-                log("---- [错误] driveByCarID: 串口服务器索引 [" + std::to_string(index) + "] 未连接!");
-                return false;
-            }
-            connPtr->sendComand(index, command);
-            _serialSocketsLock[index]->unlock();
-            QString commandQStr = command.toHex(' ').toUpper();
-            log("---- [命令帧] 发送: [" + commandQStr.toStdString() + "] 至第 [" + std::to_string(index + 1) + "] 个TCP端口, [" + std::to_string(car_id) + "] 小车运动!");
-            return true;
+        auto connPtr = SerialSockets[index].get();
+        if(connPtr == nullptr || !connPtr->SocketConnection)
+        {
+            log("---- [错误] driveByCarID: 串口服务器索引 [" + std::to_string(index) + "] 未连接!");
+            return false;
         }
-        else{
-            auto connPtr = secondSerialSockets[index].get();
-            if(connPtr == nullptr || !connPtr->SocketConnection)
-            {
-                log("---- [错误] driveByCarID: 备用串口服务器索引 [" + std::to_string(index) + "] 未连接!");
-                return false;
-            }
-            connPtr->sendComand(index, command);
-            QString commandQStr = command.toHex(' ').toUpper();
-            log("---- [命令帧] 备用 发送: [" + commandQStr.toStdString() + "] 至第 [" + std::to_string(index + 1) + "] 个TCP端口, [" + std::to_string(car_id) + "] 小车运动!");
-            return true;
-        }
-        return false;
+        connPtr->sendComand(index, command);                                     //取消下件, 测试用!!!!!
+        QString commandQStr = command.toHex(' ').toUpper();
+        log("---- [命令帧] 发送: [" + commandQStr.toStdString() + "] 至第 [" + std::to_string(index + 1) + "] 个TCP端口, [" + std::to_string(car_id) + "] 小车运动!");
+        return true;
     }
     catch (const std::exception& e)
     {
@@ -401,12 +397,17 @@ void DeviceManager::tcpConnection()
         }
         else    log("---- [S7连接] 连接失败!");
         Sleep(20);
-        if (_cameraClient41.connectTo(camera41_ip, camera41_send_port))	log("---- [41相机] 发送端口连接成功!");
+        if (_cameraClient41.connectTo(camera41_ip, camera41_send_port))	log("---- [41相机] 触发端口连接成功!");
         else    log("---- [41相机] 发送端口连接失败!");
         Sleep(20);
-        if (_cameraClient42.connectTo(camera42_ip, camera42_send_port))	log("---- [42相机] 发送端口连接成功!");
+        if (_cameraClient42.connectTo(camera42_ip, camera42_send_port))	log("---- [42相机] 触发端口连接成功!");
         else    log("---- [42相机] 发送端口连接失败!");
         Sleep(20);
+        if(_cameraSendCarId41.connectTo(camera41_carid_ip,camera41_send_carid_port)) log("---- [41相机] 发送小车端口连接成功!");
+        else log("---- [41相机] 发送小车端口连接失败!");
+        Sleep(10);
+        // if(_cameraSendCarId42.connectTo(camera42_carid_ip,camera42_send_carid_port)) log("---- [42相机] 发送小车端口连接成功!");
+        // else log("---- [42相机] 发送小车端口连接失败!");
     }
     catch (const std::exception& e)
     {
@@ -436,6 +437,7 @@ void DeviceManager::tcp_disconnection()
         _cameraClient41.disconnect();
         _cameraClient42.disconnect();
         _s7QueryPlcSlot.DisconnectFromPLC();
+        _cameraSendCarId41.disconnect();
         for (int i = 0; i < serialPortCount; ++i)
         {
             SerialSockets[i].get()->disconnect();
@@ -444,7 +446,6 @@ void DeviceManager::tcp_disconnection()
             secondSerialSockets[i].clear();
             _serialSocketsLock[i].reset();
         }
-
     }
     catch (const std::exception& e)
     {
@@ -457,6 +458,10 @@ void DeviceManager::updateCodeToCarMap(const std::string& code, int car_id)
         std::string copy_code = code;
         int copy_car_id = car_id;
         std::unique_lock<std::shared_mutex> writelock(_codeToCarLock);
+        if(copy_car_id<1||copy_car_id>TotalCarNum){
+            log("---- [updateCodeToCarMap] 单号:["+code+"], 小车号超出索引范围! 小车号: ["+std::to_string(car_id)+"]");
+            return;
+        }
         codeToCarMap[copy_code] = copy_car_id;
         writelock.unlock();
         carItemsWriter->writeItemInfo(copy_car_id, copy_code);
@@ -525,11 +530,11 @@ void DeviceManager::updateCarForCamera()
 {
     try
     {
-        int current_passingCar = passingCarNum.load();
-        int carForCamera41 = ((current_passingCar + _camera41Position.load()) - 1) % TotalCarNum + 1;
-        int carForCamera42 = ((current_passingCar + _camera42Position.load()) - 1) % TotalCarNum + 1;
-        _currentCarIdFor41.store(carForCamera41);
-        _currentCarIdFor42.store(carForCamera42);
+        int current_passingCar = passingCarNum;
+        int carForCamera41 = ((current_passingCar + _camera41Position) - 1) % TotalCarNum + 1;
+        int carForCamera42 = ((current_passingCar + _camera42Position) - 1) % TotalCarNum + 1;
+        _currentCarIdFor41 = carForCamera41;
+        _currentCarIdFor42 = carForCamera42;
     }
     catch (const std::exception& e)
     {
@@ -538,11 +543,11 @@ void DeviceManager::updateCarForCamera()
 }
 int DeviceManager::carToCamera41()  //返回当前相机41对应小车号
 {
-    return _currentCarIdFor41.load();
+    return _currentCarIdFor41;
 }
 int DeviceManager::carToCamera42()  //返回当前相机42对应小车号
 {
-    return _currentCarIdFor42.load();
+    return _currentCarIdFor42;
 }
 void DeviceManager::stepReceive(const QByteArray& data) //步进接收
 {
@@ -551,19 +556,29 @@ void DeviceManager::stepReceive(const QByteArray& data) //步进接收
         QByteArray hex = data.toHex();
         bool ok = false;
         int passingCar = hex.toULongLong(&ok, 16);
-        //log("---- [步进光电] 接收数据: [" + std::to_string(passingCar) + "]");
-        int64_t prevNs = lastStepTimeNs.load();    //上一次触发时间
+        passingCarNum = passingCar;
         auto nowTp = std::chrono::steady_clock::now().time_since_epoch();   //当前触发步进时间
         int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(nowTp).count();    //转化为纳秒
-        int64_t diffMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(nowNs - prevNs)).count();
-        oneCarTime.store(diffMs);
-        passingCarNum.store(passingCar);        //步进累加
         updateCarPosition();    //更新全局小车状态
+        updateCarForCamera();
         lastStepTimeNs.store(nowNs);
         carLoop_readCarStatus.store(true);      //在carloop中用于读取当前所有小车的点位
-        updateCarForCamera();
-        if(_cameraClient41.isConnected)    _cameraClient41.send("start");
-        if(_cameraClient42.isConnected)    _cameraClient42.send("start");
+        // if(_cameraClient41.isConnected)    _cameraClient41.send("start");
+        // if(_cameraClient42.isConnected)    _cameraClient42.send("start");
+        std::ostringstream oss;
+        oss << std::setw(3) << std::setfill('0') << _currentCarIdFor41;
+        std::string send41_carid = oss.str();
+        if(_cameraSendCarId41.isConnected)
+        {
+            _cameraSendCarId41.send(send41_carid);
+        }
+        // std::ostringstream oss_1;
+        // oss << std::setw(3) << std::setfill('0') << _currentCarIdFor42;
+        // std::string send42_carid = oss.str();
+        // if(_cameraSendCarId42.isConnected) _cameraSendCarId42.send(send42_carid);
+        StepLogger::getInstance().Log("---- [步进光电] 接收数据: ["+ std::to_string(passingCar)
+                                      + "], 6200当前小车号: ["+std::to_string(_currentCarIdFor42)
+                                      + "], 6089当前小车号: ["+std::to_string(_currentCarIdFor41)+"]");
     }
     catch (const std::exception& ex)
     {
@@ -578,7 +593,7 @@ void DeviceManager::updateCarPosition()
         for (auto& car_info : carStatus)
         {
             int vector_carid = car_info.carID - 1;
-            int currentPosition = (TotalCarNum - passingCarNum.load() + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
+            int currentPosition = (TotalCarNum - passingCarNum + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
             carStatus[vector_carid].currentPosition = currentPosition;   //更新小车位置
         }
         carStatus_writeLock.unlock();
@@ -593,11 +608,6 @@ void DeviceManager::headReceive(const QByteArray& data)  //有货的小车转两
     try
     {
         originSignalCount.fetch_add(1);   //头车感应次数累加
-        // int64_t prevsNs = lastOriginTimeNs.load();
-        auto nowTp = std::chrono::steady_clock::now().time_since_epoch();   //当前时间点
-        int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(nowTp).count();    //转化为纳秒
-        // int64_t diffMs = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::nanoseconds(nowNs - prevsNs)).count();  //计算上一次触发时间与当前时间的差值
-        lastOriginTimeNs.store(nowNs);   //更新上一次头车时间
     }
     catch (const std::exception& ex) {
         log("---- [头车光电] 数据处理异常: " + std::string(ex.what()));
@@ -667,14 +677,14 @@ void DeviceManager::resetCameraPositions()
         auto camera41Pos = _sqlQueryBtnClick->queryString("config", "name", "camera_position_one", "value");
         if (camera41Pos)
         {
-            _camera41Position.store(std::stoi(*camera41Pos));
-            log("---- [41相机] 位置重置为: " + *camera41Pos);
+            _camera41Position = std::stoi(*camera41Pos);
+            log("---- [41相机] 位置重置为: " + std::to_string(_camera41Position));
         }
         auto camera42Pos = _sqlQueryBtnClick->queryString("config", "name", "camera_position_two", "value");
         if (camera42Pos)
         {
-            _camera42Position.store(std::stoi(*camera42Pos));
-            log("---- [42相机] 位置重置为: " + *camera42Pos);
+            _camera42Position = std::stoi(*camera42Pos);
+            log("---- [42相机] 位置重置为: " + std::to_string(_camera42Position));
         }
     }
     catch (const std::exception& e)
@@ -762,23 +772,18 @@ void DeviceManager::carLoop()
 {
     using clock = std::chrono::steady_clock;
     const auto period = std::chrono::milliseconds(15);   //10ms执行一次
-    const int offsetEps = 8;       //格口偏移量误差范围,8ms
+    const int offsetEps = 5;       //格口偏移量误差范围,8ms
     std::vector<CarItem> copy_carItems;
     copy_carItems.resize(carItems.size());
     std::vector<CarInfo> copy_carStatus;
     copy_carStatus.resize(carStatus.size());
     std::vector<bool> copy_carLocks;
     copy_carLocks.resize(carLocks.size());
-    log("---- [小车循环] 小车循环线程启动!");
+    // log("---- [小车循环] 小车循环线程启动!");
     while (true)
     {
         try
         {
-            // int run_portNum = test_slot_id.load();     //强排口
-            // int run_portPosition = outports_map[run_portNum].position;   //获取1号格口位置, 强制运动的格口
-            // int run_portOffset = outports_map[run_portNum].offset;     //获取强排格口偏移量
-            // bool run_portInside = outports_map[run_portNum].inside;   //获取强排格口是否在内圈
-            // bool strong_slot_status = slots_status_map[run_portNum]; //获取强排口状态
             auto t0 = clock::now();
             int64_t prevNs = lastStepTimeNs.load();    //获取最新步进时间
             int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(t0.time_since_epoch()).count();
@@ -798,11 +803,11 @@ void DeviceManager::carLoop()
                 copy_carStatus = carStatus;      //小车位置快照
                 read_lock.unlock();
             }
-            if (carLoop_readCarLocks.load())
-            {
-                carLoop_readCarLocks.store(false);  //读取后置0
-                copy_carLocks = carLocks;
-            }
+            // if (carLoop_readCarLocks.load())
+            // {
+            //     carLoop_readCarLocks.store(false);  //读取后置0
+            //     copy_carLocks = carLocks;
+            // }
 
             for (auto& car_info : copy_carStatus)   //循环所有小车
             {
@@ -812,7 +817,7 @@ void DeviceManager::carLoop()
                 std::string code = car_item.code;
                 int currentPosition = car_info.currentPosition;
                 auto now = clock::now();
-                bool car_lock_status = copy_carLocks[vector_carid];
+                // bool car_lock_status = copy_carLocks[vector_carid];
                 if (now - t0 > period)
                 {
                     log("---- [循环警告] 小车循环过长，跳出本次循环，请注意TCP命令帧发送时间!!!!");
@@ -823,31 +828,18 @@ void DeviceManager::carLoop()
                 if (port_num<1 || port_num>TotalPortNum) continue;
                 bool slot_status = slots_status_map[port_num];   //获取格口状态
 
-                if (car_item.isLoaded && currentPosition == car_item.targetPosition && std::abs(car_item.offset - diffMs) <= offsetEps && originSignalCount.load() >= 1 && slot_status == false && car_lock_status == false)
+                if (car_item.isLoaded && currentPosition == car_item.targetPosition && std::abs(car_item.offset - diffMs) <= offsetEps && originSignalCount.load() >= 1 && slot_status == false /*&& car_lock_status == false*/)
                 {
                     bool inside = car_item.inside;
+                    log("----[carloop] 触发下件,单号: ["+code
+                        +"] 小车号: ["+std::to_string(car_id)
+                        +"] 格口号: ["+std::to_string(port_num)
+                        +"] 当前小车位置: ["+std::to_string(currentPosition)
+                        +"] 目标小车位置: ["+std::to_string(car_item.targetPosition)+"]");
                     handleCarUnload(car_id, inside, code, port_num);
                 }
-
-                //if (car_item.isLoaded)      //有货小车
-                //            {
-                //                int port_num = copy_carItems[vector_carid].port_num;   //获取格口号
-                //                if (port_num<1 || port_num>TotalPortNum) continue;
-                //                bool slot_status = slots_status_map[port_num];   //获取格口状态
-                //                if (currentPosition == car_item.targetPosition && std::abs(car_item.offset - diffMs) <= offsetEps && originSignalCount.load() >= 1 && slot_status == false && car_lock_status == false)
-                //                {
-                //                    bool inside = car_item.inside;
-                //                    handleCarUnload(car_id, inside, code, port_num);
-                //                }
-                //            }
-                //            else        //空车,强排口运动
-                //            {
-                //                if (currentPosition == run_portPosition && std::abs(run_portOffset - diffMs) <= offsetEps && strong_slot_status == false && car_lock_status == false)
-                //                {
-                //                    handleCarUnload(car_id, run_portInside, "STRONG_SLOT", run_portNum);   //强排口下件
-                //                }
-                //            }
             }
+            Sleep(5);
         }
         catch (const std::exception& e)
         {
@@ -937,8 +929,8 @@ void DeviceManager::testCamera()
 {
     try
     {
-        _cameraClient41.send("start");
-        _cameraClient42.send("start");
+        _cameraClient41.send("1");
+        _cameraClient42.send("1");
     }
     catch (const std::exception& e)
     {

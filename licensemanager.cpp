@@ -35,7 +35,7 @@ bool LicenseManager::load() {
     if (!f.exists()) {
         // ---------- 固定首次使用时间（在代码中写死） ----------
         // 把下面的 YEAR/MONTH/DAY 改成你想要“首次使用”的日期（例如 2025-12-08）
-        const QDate FIRST_RUN_DATE(2025, 12, 22);
+        const QDate FIRST_RUN_DATE(2025, 12, 27);
         const QTime FIRST_RUN_TIME(0, 0, 0); // 00:00:00
         // 把 epoch 当作 UTC 来处理（更确定），然后在显示时用 toLocalTime()
         QDateTime firstRunDT(FIRST_RUN_DATE, FIRST_RUN_TIME, QTimeZone::utc());

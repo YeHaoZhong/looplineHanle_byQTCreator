@@ -64,7 +64,7 @@ private:
 
     bool IsUpLayerLine = true;
     std::atomic<int64_t> lastStepTimeNs{ 0 }; //上一次步进时间纳秒
-    std::atomic<int> passingCarNum{ 0 }; //经过的小车数量
+    int passingCarNum = 0;
     std::atomic<int> oneCarTime{ 0 };    //一个小车的时间,一直变化
     int TotalCarNum, TotalPortNum;
     std::string main_plc_ip = "192.168.93.52";
@@ -105,13 +105,20 @@ private:
 
     SocketConnection _cameraClient41;	//ip为 41相机, 端口2001
     SocketConnection _cameraClient42;	//ip为 42相机, 端口2002
-    int camera41_send_port,camera42_send_port;
+    SocketConnection _cameraSendCarId41;    //发送小车号tcp
+    SocketConnection _cameraSendCarId42;
+    int camera41_send_port,camera42_send_port, camera41_send_carid_port,camera42_send_carid_port;
     std::string camera41_ip = "";
     std::string camera42_ip = "";
-    std::atomic<int> _camera41Position{ 80 };
-    std::atomic<int> _camera42Position{ 113 };
-    std::atomic<int> _currentCarIdFor41{ 1 };	//41相机对应下的小车id
-    std::atomic<int> _currentCarIdFor42{ 1 };	//42相机对应下的小车id
+    std::string camera41_carid_ip = "";
+    std::string camera42_carid_ip = "";
+    // std::atomic<int> _camera41Position{ 80 };
+    // std::atomic<int> _camera42Position{ 113 };
+    int _camera41Position = 80;
+    int _camera42Position = 113;
+    int _currentCarIdFor41, _currentCarIdFor42;
+    // std::atomic<int> _currentCarIdFor41{ 1 };	//41相机对应下的小车id
+    // std::atomic<int> _currentCarIdFor42{ 1 };	//42相机对应下的小车id
 
     std::atomic<int> _car_speed_first{ 1 };
     std::atomic<int> _car_distance_first{ 1 };

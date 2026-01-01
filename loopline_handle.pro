@@ -22,7 +22,8 @@ SOURCES += \
     snap7.cpp \
     socketclinet.cpp \
     sqlconnection.cpp \
-    sqlconnectionpool.cpp
+    sqlconnectionpool.cpp \
+    steplogger.cpp
 
 HEADERS += \
     StructInfo.h \
@@ -37,7 +38,8 @@ HEADERS += \
     snap7.h \
     socketclinet.h \
     sqlconnection.h \
-    sqlconnectionpool.h
+    sqlconnectionpool.h \
+    steplogger.h
 
 FORMS += \
     loopline_handle.ui

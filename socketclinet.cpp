@@ -60,7 +60,7 @@ bool SocketClient::sendData(SOCKET sock, const std::string& message)
             SocketConnection = false;
         }
         else {
-            //Logger::getInstance().Log("---- [Info] Socket send message：" + message + " successfully!");
+            // Logger::getInstance().Log("---- [Info] Socket send message：" + message + " successfully!");
             return true;
         }
     }
