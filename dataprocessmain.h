@@ -47,6 +47,8 @@ private:
     std::string camera41_ip = "";
     std::string camera42_ip = "";
     int _camera41_rev_port, _camera42_rev_port;
+    uint64_t _camera41Count = 0;
+    uint64_t _camera42Count = 0;
 private slots:
     void onSlotReceive(const QString& code, int slot_id);
     void on41cameraDataReceived(const QByteArray& data);

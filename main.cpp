@@ -8,6 +8,7 @@
 #include "licensemanager.h"
 #include "sqlconnectionpool.h"
 #include <QIcon>
+#include "logger.h"
 int main(int argc, char *argv[])
 {
 #ifdef _WIN32
@@ -27,6 +28,7 @@ int main(int argc, char *argv[])
     {
         return -1;
     }
+    Logger::getInstance().Log("------------------------------------------------------ 窗口开启 ------------------------------------------------------");
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();
     for (const QString &locale : uiLanguages) {

@@ -136,7 +136,7 @@ void CarItemsWriteThread::initCarItem(int carID)
     {
         int idx = indexForCarID_nocheck(carID);
         if (idx >= 0) {
-            //carItems_[idx].code = "";                 //面单号为空
+            carItems_[idx].code = "";                 //面单号为空
             carItems_[idx].port_num = -1;             //格口号初始化
             carItems_[idx].targetPosition = -1;       // 初始时无下件目标，可设为 -1 表示无目标
             carItems_[idx].isLoaded = false;          // 初始状态均为未装货

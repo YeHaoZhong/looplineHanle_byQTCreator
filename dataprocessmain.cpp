@@ -92,95 +92,43 @@ void DataProcessMain::driveByCarid(int car_id)
 {
     try
     {
-        _loopDevice.driveByCarID(car_id);
+        _loopDevice.driveByCarID(car_id, car_id-1);
     }
     catch (const std::exception& e)
     {
         WriteLog("---- [driveByCarid] Exception : " + std::string(e.what()));
     }
 }
-// void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//(SF6093319807519)
-// {
-//     try
-//     {
-//         std::string dataStr = data.toStdString();
-//         std::stringstream ss(dataStr);
-//         std::string item;
-//         std::vector<std::string> parts;
-//         std::string code = "";
-//         while (std::getline(ss, item, ','))
-//         {
-//             parts.push_back(item);
-//             //WriteLog("---- test  split: " + item);
-//         }
-//         if (parts.size() >= 2)
-//         {
-//             code = parts[1];
-//         }
-//         if (code == "NoRead" || code == "")
-//         {
-//             //WriteLog("---- [41相机回传] 无效数据:[" + code + "]");
-//             return;
-//         }
-//         int car_id = _loopDevice.carToCamera41();
-//         WriteLog("---- [41相机回传] 面单号:[" + code + "], 小车号: [" + std::to_string(car_id) + "]");
-//         int slot_id = insertSupply_data(code, car_id);	//判断单号是否插入过数据库或请求过
-//         if (slot_id == -1)	//未插入过数据库, 未进行请求
-//         {
-//             WriteLog("---- [物件数据] 单号:[" + code + "] 入库, 请求格口号.");
-//             QMetaObject::invokeMethod(&_requestAPI,
-//                                       "requestForSlot",
-//                                       Qt::QueuedConnection,
-//                                       Q_ARG(QString, QString::fromStdString(code)));
-//             _loopDevice.updateCodeToCarMap(code, car_id);	//更新面单对应的小车
-//         }
-//         else if (slot_id == -10)	//已插入过数据库, 未请求到格口
-//         {
-//             QMetaObject::invokeMethod(&_requestAPI,
-//                                       "requestForSlot",
-//                                       Qt::QueuedConnection,
-//                                       Q_ARG(QString, QString::fromStdString(code)));
-//             _loopDevice.updateCodeToCarMap(code, car_id);
-//         }
-//         else
-//         {
-//             WriteLog("---- [物件数据] 单号:[" + code + "] 已请求, 格口号:[" + std::to_string(slot_id) + "], 更新小车列表..");
-//             _loopDevice.updateCodeToCarMap(code, car_id);	//更新面单对应的小车
-//             _loopDevice.updateSlotByCarID(car_id, slot_id);
-//         }
-
-//     }
-//     catch (const std::exception& ex)
-//     {
-//         WriteLog(std::string("---- [41相机回传] 处理异常: ") + ex.what());
-//     }
-// }
-void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//,434965221112892,041,
+void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//(SF6093319807519)
 {
     try
     {
+        _camera41Count += 1;
         std::string dataStr = data.toStdString();
         std::stringstream ss(dataStr);
         std::string item;
         std::vector<std::string> parts;
         std::string code = "";
-        std::string carid_str = "";
         while (std::getline(ss, item, ','))
         {
             parts.push_back(item);
             //WriteLog("---- test  split: " + item);
         }
-        if (parts.size() >= 3)
+        if (parts.size() >= 2)
         {
             code = parts[1];
-            carid_str = parts[2];
         }
         if (code == "NoRead" || code == "")
         {
             //WriteLog("---- [41相机回传] 无效数据:[" + code + "]");
             return;
         }
-        int car_id = std::stoi(carid_str);
+
+        auto [dev_camera41Count,car_id]  = _loopDevice.carToCamera41();
+        if(dev_camera41Count!=_camera41Count){                          //这次计数与光电触发的计数不一致,忽略这次的单号回传!会绑错小车号!
+            _loopDevice.updateCamera41Count(_camera41Count);
+            return;
+        }
         WriteLog("---- [41相机回传] 面单号:[" + code + "], 小车号: [" + std::to_string(car_id) + "]");
         int slot_id = insertSupply_data(code, car_id);	//判断单号是否插入过数据库或请求过
         if (slot_id == -1)	//未插入过数据库, 未进行请求
@@ -213,17 +161,83 @@ void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//,4349652
         WriteLog(std::string("---- [41相机回传] 处理异常: ") + ex.what());
     }
 }
+// void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//,434965221112892,041,
+// {
+//     try
+//     {
+//         std::string dataStr = data.toStdString();
+//         std::stringstream ss(dataStr);
+//         std::string item;
+//         std::vector<std::string> parts;
+//         std::string code = "";
+//         std::string carid_str = "";
+//         while (std::getline(ss, item, ','))
+//         {
+//             parts.push_back(item);
+//             //WriteLog("---- test  split: " + item);
+//         }
+//         if (parts.size() >= 3)
+//         {
+//             code = parts[1];
+//             carid_str = parts[2];
+//         }
+//         if (code == "NoRead" || code == "")
+//         {
+//             //WriteLog("---- [41相机回传] 无效数据:[" + code + "]");
+//             return;
+//         }
+//         int car_id = std::stoi(carid_str);
+//         if(car_id == 999) return;
+//         WriteLog("---- [41相机回传] 面单号:[" + code + "], 小车号: [" + std::to_string(car_id) + "]");
+//         int slot_id = insertSupply_data(code, car_id);	//判断单号是否插入过数据库或请求过
+//         if (slot_id == -1)	//未插入过数据库, 未进行请求
+//         {
+//             WriteLog("---- [物件数据] 单号:[" + code + "] 入库, 请求格口号.");
+//             QMetaObject::invokeMethod(&_requestAPI,
+//                                       "requestForSlot",
+//                                       Qt::QueuedConnection,
+//                                       Q_ARG(QString, QString::fromStdString(code)));
+//             _loopDevice.updateCodeToCarMap(code, car_id);	//更新面单对应的小车
+//         }
+//         else if (slot_id == -10)	//已插入过数据库, 未请求到格口
+//         {
+//             QMetaObject::invokeMethod(&_requestAPI,
+//                                       "requestForSlot",
+//                                       Qt::QueuedConnection,
+//                                       Q_ARG(QString, QString::fromStdString(code)));
+//             _loopDevice.updateCodeToCarMap(code, car_id);
+//         }
+//         else
+//         {
+//             WriteLog("---- [物件数据] 单号:[" + code + "] 已请求, 格口号:[" + std::to_string(slot_id) + "], 更新小车列表..");
+//             _loopDevice.updateCodeToCarMap(code, car_id);	//更新面单对应的小车
+//             _loopDevice.updateSlotByCarID(car_id, slot_id);
+//         }
+
+//     }
+//     catch (const std::exception& ex)
+//     {
+//         WriteLog(std::string("---- [41相机回传] 处理异常: ") + ex.what());
+//     }
+// }
 void DataProcessMain::on42cameraDataReceived(const QByteArray& data)
 {
     try
     {
+        _camera42Count += 1;                                            //先加1, 设备中的光电触发也先加1
         std::string dataStr = data.toStdString();
         if (dataStr == "NoRead")
         {
             //WriteLog("---- [42相机回传] 无效数据:[" + dataStr + "]");
             return;
         }
-        int car_id = _loopDevice.carToCamera42();
+        auto [dev_camera42Count,car_id]  = _loopDevice.carToCamera42();
+        if(dev_camera42Count!=_camera42Count){                          //这次计数与光电触发的计数不一致,忽略这次的单号回传!会绑错小车号!
+            WriteLog("---- [42相机回传] 计数不一致! 忽略本次回传!");
+            _loopDevice.updateCamera42Count(_camera42Count);
+            return;
+        }
+
         WriteLog("---- [42相机回传] 面单号:[" + dataStr + "], 小车号: [" + std::to_string(car_id) + "]");
         int slot_id = insertSupply_data(dataStr, car_id);	//判断单号是否插入过数据库或请求过
         if (slot_id == -1)	//未插入过数据库, 未进行请求
@@ -284,7 +298,7 @@ void DataProcessMain::dbInit()
             Logger::getInstance().Log("----[sql异常] 连接空指针!");
             return;
         }
-        auto db_camera41_ip = _sqlQuery->queryString("config", "name", "camera_carid_ip_one", "value");             //更改了使用读码平台的ip
+        auto db_camera41_ip = _sqlQuery->queryString("config", "name", "camera_ip_one", "value");
         if (db_camera41_ip)	camera41_ip = *db_camera41_ip;
 
         auto db_camera42_ip = _sqlQuery->queryString("config", "name", "camera_ip_two", "value");

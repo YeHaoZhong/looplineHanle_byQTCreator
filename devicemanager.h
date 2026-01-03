@@ -20,7 +20,7 @@ public:
     void tcpConnection();
     void updateCarPosition();
     void carLoop();	//循环遍历下件
-    void handleCarUnload(int car_id, bool direction, std::string code, int slot_id);
+    void handleCarUnload(int car_id, bool direction, std::string code, int slot_id, uint64_t targetPosition);
     int getTimeDiff();
     void initCarPosition(int car_id, int current_position);
     void initCarItems(int car_id);
@@ -36,10 +36,18 @@ public:
     void slotLoop();
 
     void serialPortInit();
-    bool driveByCarID( int car_id, bool Corotation = true,int speed = 90, int distance = 80, int acceleration = 100);    //Corotation = true 是正转? mode = 0 上件, mode = 1下件
+    bool driveByCarID( int car_id,
+                      uint64_t lastCarPositionVersion,
+                      bool Corotation = true,
+                      int speed = 90,
+                      int distance = 80,
+                      int acceleration = 100
+                      );    //Corotation = true 是正转? mode = 0 上件, mode = 1下件
     void updateCarForCamera();	//更新当前应拍摄相机的小车id
-    int carToCamera41();	//返回当前应拍摄41相机的小车id
-    int carToCamera42();	//返回当前应拍摄42相机的小车id
+    std::tuple<uint64_t,int> carToCamera41();           //返回当前应拍摄41相机的计数以及小车id
+    std::tuple<uint64_t,int> carToCamera42();           //返回当前应拍摄42相机的计数以及小车id
+    void updateCamera41Count(uint64_t new_count);       //根据dataprocess 中的计数来更新
+    void updateCamera42Count(uint64_t new_count);
 
     void updateCodeToCarMap(const std::string& code, int car_id);	//将面单号与小车号绑定
     void testCarLoop();
@@ -55,15 +63,21 @@ public:
     void tcp_disconnection();
     void cleanup();
 private:
-    std::atomic<bool> carLoop_readCarItems{true};	//在经过一次光电后才进行读取一次小车上所有的信息状态
-    std::atomic<bool> carLoop_readCarStatus{true};
+    // std::atomic<bool> carLoop_readCarItems{true};	//在经过一次光电后才进行读取一次小车上所有的信息状态
+    // std::atomic<bool> carLoop_readCarStatus{true};
+
+    std::atomic<uint64_t> carLoop_readCarStatusVersion{0};
+    std::atomic<uint64_t> carLoop_readCarItemsVersion{0};
+
+    std::atomic<uint64_t> step_camera41Count {0};             //作为41相机的计数
+    std::atomic<uint64_t> step_camera42Count {0};             //作为42相机的计数
 
     SocketConnection _stepTcp;
     SocketConnection _headTcp;
     SocketConnection _emptyTcp;
 
     bool IsUpLayerLine = true;
-    std::atomic<int64_t> lastStepTimeNs{ 0 }; //上一次步进时间纳秒
+    std::atomic<int64_t> lastStepTimeNs{ 1 }; //上一次步进时间纳秒
     int passingCarNum = 0;
     std::atomic<int> oneCarTime{ 0 };    //一个小车的时间,一直变化
     int TotalCarNum, TotalPortNum;
@@ -116,9 +130,9 @@ private:
     // std::atomic<int> _camera42Position{ 113 };
     int _camera41Position = 80;
     int _camera42Position = 113;
-    int _currentCarIdFor41, _currentCarIdFor42;
-    // std::atomic<int> _currentCarIdFor41{ 1 };	//41相机对应下的小车id
-    // std::atomic<int> _currentCarIdFor42{ 1 };	//42相机对应下的小车id
+    // int _currentCarIdFor41, _currentCarIdFor42;
+    std::atomic<int> _currentCarIdFor41{ 1 };	//41相机对应下的小车id
+    std::atomic<int> _currentCarIdFor42{ 1 };	//42相机对应下的小车id
 
     std::atomic<int> _car_speed_first{ 1 };
     std::atomic<int> _car_distance_first{ 1 };
