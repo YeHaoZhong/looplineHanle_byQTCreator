@@ -40,8 +40,8 @@ private:
     QQueue<ReqItem> m_requestQueue;
     QHash<QNetworkReply*, qint64> m_pending; // reply -> start timestamp (ms)
     int requestTimeoutMs = 5000;    // 超时阈值（毫秒）
-    int concurrencyLimit = 6;
-    int maxQueueSize = 1000;
+    int concurrencyLimit = 4;
+    int maxQueueSize = 200;
     QTimer timeoutTimer;
 
     QString _getSlotUrl = "http://api.zygp.site/openapi/express/fjUpload";

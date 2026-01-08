@@ -20,6 +20,7 @@ public:
     void tcpConnection();
     void updateCarPosition();
     void carLoop();	//循环遍历下件
+
     void handleCarUnload(int car_id, bool direction, std::string code, int slot_id, uint64_t targetPosition);
     int getTimeDiff();
     void initCarPosition(int car_id, int current_position);
@@ -67,6 +68,11 @@ private:
     // std::atomic<bool> carLoop_readCarStatus{true};
 
     std::atomic<uint64_t> carLoop_readCarStatusVersion{0};
+    // std::atomic<uint64_t> carLoop_readPositionVer_first {0};
+    // std::atomic<uint64_t> carLoop_readPositionVer_second {0};
+    // std::atomic<uint64_t> carLoop_readPositionVer_third {0};
+    // std::atomic<uint64_t> carLoop_readPositionVer_fourth {0};
+    // std::atomic<uint64_t> carLoop_readPositionVer_fifth {0};
     std::atomic<uint64_t> carLoop_readCarItemsVersion{0};
 
     std::atomic<uint64_t> step_camera41Count {0};             //作为41相机的计数
@@ -87,6 +93,17 @@ private:
 
     std::vector<CarInfo> carStatus;     //小车位置
     std::shared_mutex carStatusLock;   //多读少写, 线程锁
+    // std::vector<CarInfo> carPosition_first;     //1-48
+    // std::vector<CarInfo> carPosition_second;    //49-96
+    // std::vector<CarInfo> carPosition_thrid;     //97-144;
+    // std::vector<CarInfo> carPosition_fourth;    //145-192;
+    // std::vector<CarInfo> carPosition_fifth;     //193-202;
+    // //分出5个端口的小车位置, 把每一组24个小车各自单独使用线程进行循环.(是否需要把小车的连接也进行修改?)
+    // std::shared_mutex carPositionLock_first;
+    // std::shared_mutex carPositionLock_second;
+    // std::shared_mutex carPositionLock_third;
+    // std::shared_mutex carPositionLock_fourth;
+    // std::shared_mutex carPositionLock_fifth;
 
     std::vector<CarItem> carItems;   //小车扩展状态及信息
     std::shared_mutex carItemsLock;
@@ -101,6 +118,11 @@ private:
     bool m_polling = false;
     std::thread m_slotThread;
     std::thread m_pollCarThread;
+    // std::thread m_pollCarFirstThread;
+    // std::thread m_pollCarSecondThread;
+    // std::thread m_pollCarThirdThread;
+    // std::thread m_pollCarFourthThread;
+    // std::thread m_pollCarFifthThread;
 
     std::atomic<bool> m_test{ false };
     std::thread m_testCarThread;

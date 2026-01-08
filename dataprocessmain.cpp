@@ -37,7 +37,8 @@ void DataProcessMain::init()
     try
     {
         m_threadPool.setMaxThreadCount(20);
-        connect(&_requestAPI, &RequestAPI::getSlotSuccess, this, &DataProcessMain::onSlotReceive);	//将请求返回结果 连接到 onSlotReceive
+        connect(&_requestAPI, &RequestAPI::getSlotSuccess, this, &DataProcessMain::onSlotReceive/*,Qt::QueuedConnection*/);	//将请求返回结果 连接到 onSlotReceive
+        // connect(&_requestAPISecond, &RequestAPI::getSlotSuccess, this, &DataProcessMain::onSlotReceiveSecond);
         dbInit();
         initCameras();
         _loopDevice.init();
@@ -161,65 +162,7 @@ void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//(SF609331
         WriteLog(std::string("---- [41相机回传] 处理异常: ") + ex.what());
     }
 }
-// void DataProcessMain::on41cameraDataReceived(const QByteArray& data)	//,434965221112892,041,
-// {
-//     try
-//     {
-//         std::string dataStr = data.toStdString();
-//         std::stringstream ss(dataStr);
-//         std::string item;
-//         std::vector<std::string> parts;
-//         std::string code = "";
-//         std::string carid_str = "";
-//         while (std::getline(ss, item, ','))
-//         {
-//             parts.push_back(item);
-//             //WriteLog("---- test  split: " + item);
-//         }
-//         if (parts.size() >= 3)
-//         {
-//             code = parts[1];
-//             carid_str = parts[2];
-//         }
-//         if (code == "NoRead" || code == "")
-//         {
-//             //WriteLog("---- [41相机回传] 无效数据:[" + code + "]");
-//             return;
-//         }
-//         int car_id = std::stoi(carid_str);
-//         if(car_id == 999) return;
-//         WriteLog("---- [41相机回传] 面单号:[" + code + "], 小车号: [" + std::to_string(car_id) + "]");
-//         int slot_id = insertSupply_data(code, car_id);	//判断单号是否插入过数据库或请求过
-//         if (slot_id == -1)	//未插入过数据库, 未进行请求
-//         {
-//             WriteLog("---- [物件数据] 单号:[" + code + "] 入库, 请求格口号.");
-//             QMetaObject::invokeMethod(&_requestAPI,
-//                                       "requestForSlot",
-//                                       Qt::QueuedConnection,
-//                                       Q_ARG(QString, QString::fromStdString(code)));
-//             _loopDevice.updateCodeToCarMap(code, car_id);	//更新面单对应的小车
-//         }
-//         else if (slot_id == -10)	//已插入过数据库, 未请求到格口
-//         {
-//             QMetaObject::invokeMethod(&_requestAPI,
-//                                       "requestForSlot",
-//                                       Qt::QueuedConnection,
-//                                       Q_ARG(QString, QString::fromStdString(code)));
-//             _loopDevice.updateCodeToCarMap(code, car_id);
-//         }
-//         else
-//         {
-//             WriteLog("---- [物件数据] 单号:[" + code + "] 已请求, 格口号:[" + std::to_string(slot_id) + "], 更新小车列表..");
-//             _loopDevice.updateCodeToCarMap(code, car_id);	//更新面单对应的小车
-//             _loopDevice.updateSlotByCarID(car_id, slot_id);
-//         }
 
-//     }
-//     catch (const std::exception& ex)
-//     {
-//         WriteLog(std::string("---- [41相机回传] 处理异常: ") + ex.what());
-//     }
-// }
 void DataProcessMain::on42cameraDataReceived(const QByteArray& data)
 {
     try
@@ -276,18 +219,34 @@ void DataProcessMain::onSlotReceive(const QString& code, int slot_id)
         int copy_slot_id = slot_id;
         std::string copy_code = code.toStdString();
         WriteLog("---- [请求回传] 单号:[" + copy_code + "], 格口号:[" + std::to_string(copy_slot_id) + "]");
-        _loopDevice.updateSlotByCode(copy_code, copy_slot_id);
-        auto _sqlQuery = SqlConnectionPool::instance().acquire();
-        if(!_sqlQuery){
-            Logger::getInstance().Log("----[sql异常] 连接空指针!");
-            return;
-        }
-        _sqlQuery->updateValue("supply_data", "code", copy_code, "slot_id", std::to_string(slot_id));
+        QtConcurrent::run([copy_code, copy_slot_id]() {
+            auto _sqlQuery = SqlConnectionPool::instance().acquire();
+            if(!_sqlQuery){
+                Logger::getInstance().Log("----[sql异常] 连接空指针!");
+                return;
+            }
+            _sqlQuery->updateValue("supply_data", "code", copy_code, "slot_id", std::to_string(copy_slot_id));
+        });
+        QMetaObject::invokeMethod(this, "handleUpdateSlotOnMainThread",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(std::string, copy_code),
+                                  Q_ARG(int, copy_slot_id));
+        // _loopDevice.updateSlotByCode(copy_code, copy_slot_id);
+        // auto _sqlQuery = SqlConnectionPool::instance().acquire();
+        // if(!_sqlQuery){
+        //     Logger::getInstance().Log("----[sql异常] 连接空指针!");
+        //     return;
+        // }
+        // _sqlQuery->updateValue("supply_data", "code", copy_code, "slot_id", std::to_string(slot_id));
     }
     catch (const std::exception& ex)
     {
         WriteLog(std::string("---- [请求回传] 异常: ") + ex.what());
     }
+}
+void DataProcessMain::handleUpdateSlotOnMainThread(const std::string& code, int slot_id)
+{
+    _loopDevice.updateSlotByCode(code, slot_id);
 }
 void DataProcessMain::dbInit()
 {

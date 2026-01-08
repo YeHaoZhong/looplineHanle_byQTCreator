@@ -23,11 +23,11 @@ int main(int argc, char *argv[])
     SqlConnectionPool::instance().init(10);
     QApplication a(argc, argv);
     a.setWindowIcon(QIcon(":/resource/logo.png"));
-    LicenseManager lic("license.json");
-    if (!lic.checkAndPrompt(nullptr))
-    {
-        return -1;
-    }
+    // LicenseManager lic("license.json");
+    // if (!lic.checkAndPrompt(nullptr))
+    // {
+    //     return -1;
+    // }
     Logger::getInstance().Log("------------------------------------------------------ 窗口开启 ------------------------------------------------------");
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();

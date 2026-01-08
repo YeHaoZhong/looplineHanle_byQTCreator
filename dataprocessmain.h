@@ -38,7 +38,8 @@ private:
 
     QThreadPool m_threadPool;
 
-    RequestAPI _requestAPI;
+    RequestAPI _requestAPI;     //设置两个请求类
+    // RequestAPI _requestAPISecond;
 
     //程序作为客户端
     SocketConnection _cameraClient41;	//ip为 41相机
@@ -51,6 +52,7 @@ private:
     uint64_t _camera42Count = 0;
 private slots:
     void onSlotReceive(const QString& code, int slot_id);
+    // void onSlotReceiveSecond(const QString& code, int slot_id);
     void on41cameraDataReceived(const QByteArray& data);
     void on42cameraDataReceived(const QByteArray& data);
 public slots:
@@ -58,7 +60,7 @@ public slots:
     void resetSlotConfigurations();
     void testCamera();
     void resetDriver();
-
+    void handleUpdateSlotOnMainThread(const std::string& code, int slot_id);
 };
 
 

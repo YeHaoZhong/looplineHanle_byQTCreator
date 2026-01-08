@@ -54,6 +54,11 @@ void DeviceManager::dbInit()
         if (car_num)
         {
             TotalCarNum = std::stoi(*car_num);
+            // carPosition_first.resize(48);
+            // carPosition_second.resize(48);
+            // carPosition_thrid.resize(48);
+            // carPosition_fourth.resize(48);
+            // carPosition_fifth.resize(10);
             carStatus.resize(TotalCarNum);
             carItems.resize(TotalCarNum);
             carLocks.resize(TotalCarNum);
@@ -294,13 +299,6 @@ bool DeviceManager::driveByCarID(int car_id,
             log("---- [错误] driveByCarID: 串口服务器索引 [" + std::to_string(index) + "] 未连接!");
             return false;
         }
-
-        // uint64_t check_position_ver = carLoop_readCarStatusVersion.load(std::memory_order_acquire);     //循环中检查一遍
-        // if(check_position_ver!=lastCarPositionVersion)
-        // {
-        //     log("---- [driveByCarID] 小车位置已被改变!! 取消发送下件命令!");
-        //     return false;
-        // }
         connPtr->sendComand(index, command);
         QString commandQStr = command.toHex(' ').toUpper();
         log("---- [命令帧] 发送: [" + commandQStr.toStdString() + "] 至第 [" + std::to_string(index + 1) + "] 个TCP端口, [" + std::to_string(car_id) + "] 小车运动!");
@@ -318,6 +316,11 @@ void DeviceManager::startLoop()
     m_polling = true;
     m_pollCarThread = std::thread(&DeviceManager::carLoop, this);     //小车位置轮询线程
     m_slotThread = std::thread(&DeviceManager::slotLoop, this);
+    // m_pollCarFirstThread = std::thread(&DeviceManager::carLoop_first,this);
+    // m_pollCarSecondThread = std::thread(&DeviceManager::carLoop_second,this);
+    // m_pollCarThirdThread = std::thread(&DeviceManager::carLoop_third,this);
+    // m_pollCarFourthThread = std::thread(&DeviceManager::carLoop_fourth,this);
+    // m_pollCarFifthThread = std::thread(&DeviceManager::carLoop_fifth,this);
 }
 void DeviceManager::stopLoop()
 {
@@ -330,6 +333,21 @@ void DeviceManager::stopLoop()
     {
         m_pollCarThread.join();
     }
+    // if(m_pollCarFirstThread.joinable()){
+    //     m_pollCarFirstThread.join();
+    // }
+    // if(m_pollCarSecondThread.joinable()){
+    //     m_pollCarSecondThread.join();
+    // }
+    // if(m_pollCarThirdThread.joinable()){
+    //     m_pollCarThirdThread.join();
+    // }
+    // if(m_pollCarFourthThread.joinable()){
+    //     m_pollCarFourthThread.join();
+    // }
+    // if(m_pollCarFifthThread.joinable()){
+    //     m_pollCarFifthThread.join();
+    // }
 }
 void DeviceManager::startCarTestLoop()
 {
@@ -460,8 +478,9 @@ void DeviceManager::tcp_disconnection()
             _serialSocketsLock[i].reset();
         }
     }
-    catch (const std::exception& e)
+    catch (...)
     {
+
     }
 }
 void DeviceManager::updateCodeToCarMap(const std::string& code, int car_id)
@@ -595,9 +614,9 @@ void DeviceManager::stepReceive(const QByteArray& data) //步进接收
         auto nowTp = std::chrono::steady_clock::now().time_since_epoch();   //当前触发步进时间
         int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(nowTp).count();    //转化为纳秒
         updateCarPosition();    //更新全局小车状态
+        carLoop_readCarStatusVersion.fetch_add(1,std::memory_order_release);
         updateCarForCamera();
         lastStepTimeNs.store(nowNs);
-        carLoop_readCarStatusVersion.fetch_add(1,std::memory_order_release);
 
         // std::ostringstream oss;
         // oss << std::setw(3) << std::setfill('0') << _currentCarIdFor41.load(std::memory_order_acquire);
@@ -632,6 +651,59 @@ void DeviceManager::updateCarPosition()
     {
         log("---- [小车位置] 更新异常: " + std::string(e.what()));
     }
+    // try
+    // {
+    //     std::unique_lock<std::shared_mutex> carStatus_writeLock_first(carPositionLock_first);         //1-48
+    //     for (auto& car_info : carPosition_first)
+    //     {
+    //         int vector_carid = car_info.carID - 1;
+    //         int currentPosition = (TotalCarNum - passingCarNum + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
+    //         carPosition_first[vector_carid].currentPosition = currentPosition;   //更新小车位置
+    //     }
+    //     carStatus_writeLock_first.unlock();
+    //     // carLoop_readPositionVer_first.fetch_add(1,std::memory_order_release);
+
+    //     std::unique_lock<std::shared_mutex> carStatus_writeLock_second(carPositionLock_second);         //49-96
+    //     for (auto& car_info : carPosition_second)
+    //     {
+    //         int vector_carid = car_info.carID - 1;
+    //         int currentPosition = (TotalCarNum - passingCarNum + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
+    //         carPosition_second[vector_carid].currentPosition = currentPosition;   //更新小车位置
+    //     }
+    //     carStatus_writeLock_second.unlock();
+    //     // carLoop_readPositionVer_second.fetch_add(1,std::memory_order_release);
+
+    //     std::unique_lock<std::shared_mutex> carStatus_writeLock_third(carPositionLock_third);         //
+    //     for (auto& car_info : carPosition_thrid)
+    //     {
+    //         int vector_carid = car_info.carID - 1;
+    //         int currentPosition = (TotalCarNum - passingCarNum + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
+    //         carPosition_thrid[vector_carid].currentPosition = currentPosition;   //更新小车位置
+    //     }
+    //     carStatus_writeLock_third.unlock();
+
+    //     std::unique_lock<std::shared_mutex> carStatus_writeLock_fourth(carPositionLock_fourth);         //
+    //     for (auto& car_info : carPosition_fourth)
+    //     {
+    //         int vector_carid = car_info.carID - 1;
+    //         int currentPosition = (TotalCarNum - passingCarNum + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
+    //         carPosition_fourth[vector_carid].currentPosition = currentPosition;   //更新小车位置
+    //     }
+    //     carStatus_writeLock_fourth.unlock();
+
+    //     std::unique_lock<std::shared_mutex> carStatus_writeLock_fifth(carPositionLock_fifth);         //
+    //     for (auto& car_info : carPosition_fifth)
+    //     {
+    //         int vector_carid = car_info.carID - 1;
+    //         int currentPosition = (TotalCarNum - passingCarNum + car_info.carID) % TotalCarNum;  //计算当前车的位置, vector中实际小车号从1开始,实际点位从1开始
+    //         carPosition_fifth[vector_carid].currentPosition = currentPosition;   //更新小车位置
+    //     }
+    //     carStatus_writeLock_fifth.unlock();
+    // }
+    // catch (const std::exception& e)
+    // {
+    //     log("---- [小车位置] 更新异常: " + std::string(e.what()));
+    // }
 }
 void DeviceManager::headReceive(const QByteArray& data)  //有货的小车转两圈后强制下格口
 {
@@ -812,16 +884,13 @@ void DeviceManager::carLoop()
     copy_carLocks.resize(carLocks.size());
     uint64_t lastCarStatusVersion = 0;
     uint64_t lastCarItemsVersion = 0;
+    int64_t prevNs = 0;
     while (m_polling)
     {
         try
         {
             auto t0 = clock::now();
-            int64_t prevNs = lastStepTimeNs.load();    //获取最新步进时间
-            if(prevNs<=0){
-                // log("----[小车循环] 最新步进时间有误! 步进时间: ["+std::to_string(prevNs)+"]");
-                continue;
-            }
+
             // int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(t0.time_since_epoch()).count();
             // int64_t diffMs = (nowNs - prevNs) / 1'000'000;      //碰到光电到现在的时间, 也就是当前光电所在小车挡板的位置
 
@@ -842,6 +911,11 @@ void DeviceManager::carLoop()
             }
             uint64_t position_ver = carLoop_readCarStatusVersion.load(std::memory_order_acquire);
             if(position_ver!=lastCarStatusVersion){
+                prevNs = lastStepTimeNs.load();    //获取最新步进时间,只有在步进触发后再读取
+                if(prevNs<=0){
+                    // log("----[小车循环] 最新步进时间有误! 步进时间: ["+std::to_string(prevNs)+"]");
+                    continue;
+                }
                 std::shared_lock<std::shared_mutex> read_lock(carStatusLock);
                 uint64_t position_ver2 = carLoop_readCarStatusVersion.load(std::memory_order_acquire);
                 if(position_ver2 == position_ver){
@@ -865,26 +939,26 @@ void DeviceManager::carLoop()
                 }
 
                 auto now_tp = clock::now();     //用当前时间进行计算
+                auto elapsed = now_tp - t0;
+                if (elapsed > period)
+                {
+                    log("---- [循环警告] 小车循环过长，跳出本次循环，请注意TCP命令帧发送时间!!!!");
+                    break;          // 时间到，跳出本次循环, 确保小车状态最新
+                }
                 int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(now_tp.time_since_epoch()).count();
                 int64_t diffMs = (nowNs - prevNs) / 1'000'000; // ms
                 if(diffMs<0) diffMs=0;
 
+
                 int car_id = car_info.carID;
-                int vector_carid = car_info.carID - 1;
+                int vector_carid = car_id - 1;
                 if (vector_carid < 0 || vector_carid >= copy_carItems.size()){
                     continue;
                 }
                 const auto& car_item = copy_carItems[vector_carid];    //小车上状态及信息
                 std::string code = car_item.code;
                 int currentPosition = car_info.currentPosition;
-                auto now = clock::now();
-                auto elapsed = now - t0;
-                // bool car_lock_status = copy_carLocks[vector_carid];
-                if (elapsed > period)
-                {
-                    log("---- [循环警告] 小车循环过长，跳出本次循环，请注意TCP命令帧发送时间!!!!");
-                    break;          // 时间到，跳出本次循环, 确保小车状态最新
-                }
+
 
                 int port_num = copy_carItems[vector_carid].port_num;   //获取格口号
                 if (port_num<1 || port_num>TotalPortNum) continue;      //跳过当前的
@@ -898,22 +972,8 @@ void DeviceManager::carLoop()
                     /*&& car_lock_status == false*/
                 )
                 {
-                    // bool inside = car_item.inside;
-                    //handleCarUnload(car_id, inside, code, port_num, lastCarStatusVersion);          //传入lastCarStatusVersion 用于socket发送命令帧前, 判断是否为小车当前位置标志
-                    // log("----[carloop] 触发下件,单号: ["+code
-                    //     +"] 小车号: ["+std::to_string(car_id)
-                    //     +"] 格口号: ["+std::to_string(port_num)
-                    //     +"] 当前小车位置: ["+std::to_string(currentPosition)
-                    //     +"] 目标小车位置: ["+std::to_string(car_item.targetPosition)+"]");
-                    int carIdCopy = car_id;
-                    bool insideCopy = car_item.inside;
-                    std::string codeCopy = code; // 若 handleCarUnload 接受 std::string
-                    int portNumCopy = port_num;
-                    uint64_t verCopy = lastCarStatusVersion;
-                    QtConcurrent::run([=]() {
-                        // 注意：这里是在工作线程中执行，请确保 handleCarUnload 线程安全
-                        handleCarUnload(carIdCopy, insideCopy, codeCopy, portNumCopy, verCopy);
-                    });
+                    bool inside = car_item.inside;
+                    handleCarUnload(car_id, inside, code, port_num, lastCarStatusVersion);          //传入lastCarStatusVersion 用于socket发送命令帧前, 判断是否为小车当前位置标志
                 }
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
@@ -924,6 +984,7 @@ void DeviceManager::carLoop()
         }
     }
 }
+
 void DeviceManager::handleCarUnload(int car_id, bool direction, std::string code, int slot_id, uint64_t lastCarStatusVersion) //下件,同时初始化小车
 {
     try
@@ -962,6 +1023,24 @@ void DeviceManager::initCarPosition(int car_id, int current_position)
     info.carID = car_id;            //真实小车号
     info.currentPosition = current_position;       // 初始位置可以直接设为编号（或根据实际情况调整）
     carStatus[vector_carid] = info;       // 将该小车状态存入映射，键为 carID
+
+    // CarInfo info;
+    // info.carID = car_id;
+    // info.currentPosition = current_position;
+    // if(car_id<=48){                     //1-48
+    //     carPosition_first[vector_carid] = info;
+    // }
+    // else if(car_id>48&&car_id<=96){     //49-96
+    //     carPosition_second[vector_carid] = info;
+    // }
+    // else if(car_id>96&&car_id<=144){     //97-144
+    //     carPosition_thrid[vector_carid] = info;
+    // }
+    // else if(car_id>144&&car_id<=192){   //145-192
+    //     carPosition_fourth[vector_carid] = info;
+    // }else if(car_id>192&&car_id<=202){
+    //     carPosition_fifth[vector_carid] = info;
+    // }
 }
 void DeviceManager::initCarItems(int car_id)
 {
