@@ -64,15 +64,8 @@ public:
     void tcp_disconnection();
     void cleanup();
 private:
-    // std::atomic<bool> carLoop_readCarItems{true};	//在经过一次光电后才进行读取一次小车上所有的信息状态
-    // std::atomic<bool> carLoop_readCarStatus{true};
 
     std::atomic<uint64_t> carLoop_readCarStatusVersion{0};
-    // std::atomic<uint64_t> carLoop_readPositionVer_first {0};
-    // std::atomic<uint64_t> carLoop_readPositionVer_second {0};
-    // std::atomic<uint64_t> carLoop_readPositionVer_third {0};
-    // std::atomic<uint64_t> carLoop_readPositionVer_fourth {0};
-    // std::atomic<uint64_t> carLoop_readPositionVer_fifth {0};
     std::atomic<uint64_t> carLoop_readCarItemsVersion{0};
 
     std::atomic<uint64_t> step_camera41Count {0};             //作为41相机的计数
@@ -85,25 +78,17 @@ private:
     bool IsUpLayerLine = true;
     std::atomic<int64_t> lastStepTimeNs{ 1 }; //上一次步进时间纳秒
     int passingCarNum = 0;
-    std::atomic<int> oneCarTime{ 0 };    //一个小车的时间,一直变化
+    int oneCarTime = 0;
     int TotalCarNum, TotalPortNum;
     std::string main_plc_ip = "192.168.93.52";
     std::atomic<int> originSignalCount{ 0 }; //头车感应次数
-    std::atomic<int64_t> lastOriginTimeNs{ 0 }; //上一次头车感应时间纳秒
+    std::atomic<int64_t> lastOriginTimeNs{ 1 }; //上一次头车感应时间纳秒
+    std::atomic<int> carLoop_passingCarNum{0};             //用于比较与头车时间差的对比
+    int m_head_signal_offset = 0;
+    std::atomic<bool> headDiffMs_isTrue{true};        //经过小车时间与头车时间差 匹配正确
 
     std::vector<CarInfo> carStatus;     //小车位置
     std::shared_mutex carStatusLock;   //多读少写, 线程锁
-    // std::vector<CarInfo> carPosition_first;     //1-48
-    // std::vector<CarInfo> carPosition_second;    //49-96
-    // std::vector<CarInfo> carPosition_thrid;     //97-144;
-    // std::vector<CarInfo> carPosition_fourth;    //145-192;
-    // std::vector<CarInfo> carPosition_fifth;     //193-202;
-    // //分出5个端口的小车位置, 把每一组24个小车各自单独使用线程进行循环.(是否需要把小车的连接也进行修改?)
-    // std::shared_mutex carPositionLock_first;
-    // std::shared_mutex carPositionLock_second;
-    // std::shared_mutex carPositionLock_third;
-    // std::shared_mutex carPositionLock_fourth;
-    // std::shared_mutex carPositionLock_fifth;
 
     std::vector<CarItem> carItems;   //小车扩展状态及信息
     std::shared_mutex carItemsLock;
@@ -118,11 +103,6 @@ private:
     bool m_polling = false;
     std::thread m_slotThread;
     std::thread m_pollCarThread;
-    // std::thread m_pollCarFirstThread;
-    // std::thread m_pollCarSecondThread;
-    // std::thread m_pollCarThirdThread;
-    // std::thread m_pollCarFourthThread;
-    // std::thread m_pollCarFifthThread;
 
     std::atomic<bool> m_test{ false };
     std::thread m_testCarThread;
@@ -148,11 +128,8 @@ private:
     std::string camera42_ip = "";
     std::string camera41_carid_ip = "";
     std::string camera42_carid_ip = "";
-    // std::atomic<int> _camera41Position{ 80 };
-    // std::atomic<int> _camera42Position{ 113 };
     int _camera41Position = 80;
     int _camera42Position = 113;
-    // int _currentCarIdFor41, _currentCarIdFor42;
     std::atomic<int> _currentCarIdFor41{ 1 };	//41相机对应下的小车id
     std::atomic<int> _currentCarIdFor42{ 1 };	//42相机对应下的小车id
 
